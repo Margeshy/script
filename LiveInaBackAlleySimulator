@@ -1,0 +1,172 @@
+local player : Player = game.Players.LocalPlayer
+local stat : Folder = player.playerStats
+local char : Model
+local human : Humanoid
+local hump : Part
+local tool : Tool
+
+local going = false
+local sell = false
+
+local function PressButton(butt)
+	for i,v in pairs({"MouseButton1Click"}) do 
+		v = butt[v] 
+		firesignal(v)
+	end
+end
+
+local function fireproximityprompt(Obj, Amount, Skip)
+	if Obj.ClassName == "ProximityPrompt" then 
+		Amount = Amount or 1
+		local PromptTime = Obj.HoldDuration
+		if Skip then 
+			Obj.HoldDuration = 0
+		end
+		for i = 1, Amount do 
+			Obj:InputHoldBegin()
+			if not Skip then 
+				wait(Obj.HoldDuration)
+			end
+			Obj:InputHoldEnd()
+		end
+		Obj.HoldDuration = PromptTime
+	else 
+		error("userdata<ProximityPrompt> expected")
+	end
+end
+
+function BugFixer()
+	local gui = game:GetService("Players").LocalPlayer.PlayerGui.SellGui 
+	local exi = gui.SellFrame.exit
+	local pos = game:GetService("Workspace").guy.Head.CFrame
+	local prox = game:GetService("Workspace").guy.ProximityPrompt
+	hump.CFrame = pos 
+	wait(0.5)
+	repeat
+		game.Workspace.CurrentCamera.CFrame = CFrame.new(char.Head.Position,pos.Position)
+		fireproximityprompt(prox,1,false)
+		task.wait()
+	until gui.Enabled == true
+	PressButton(exi)
+	wait(0.5)
+end
+
+function All()
+	local gui = game:GetService("Players").LocalPlayer.PlayerGui.SellGui.SellFrame.sellAll
+	local pos = game:GetService("Workspace").guy.Head.CFrame
+	hump.CFrame = pos 
+	wait(0.5)
+	PressButton(gui)
+	wait(0.2)
+end
+function Update()
+	stat = nil
+	char = nil 
+	human = nil 
+	hump = nil 
+	tool = nil
+	repeat
+		task.wait()
+	until player.Character and player.Character:IsDescendantOf(game)
+	stat = player.playerStats
+	char = player.Character
+	human = char:WaitForChild("Humanoid")
+	hump = char:WaitForChild("HumanoidRootPart")
+	repeat
+		tool = player.Backpack:FindFirstChildOfClass("Tool") or char:FindFirstChildOfClass("Tool")
+		task.wait()
+	until tool
+	tool.Parent = char
+	local con = nil 
+	con = player.CharacterRemoving:Connect(function() 
+		Update()
+		con:Disconnect()
+	end)
+	if sell then 
+		sell = false
+		All()
+	end
+	if going then
+		spawn(function()
+			activate()
+		end)
+	end
+end
+Update() 
+BugFixer()
+local boxes = game:GetService("Workspace").hitboxes
+local Units = { 
+	["Mythical trash"] = 5, 
+	["Legendary trash"] = 4, 
+	["Rare trash"] = 1
+}
+local function eval(p : Part)
+	local vals = {}
+	local g : Frame = p.BillboardGui:FindFirstChild("Frame") or p.BillboardGui
+	local total = 0
+	for i, v in pairs(g:GetChildren()) do 
+		if v:IsA("TextLabel") then
+			local s = v.Text:split(":")
+			local u,num = s[1],tonumber(s[2])
+			total = total + (Units[u] * num)
+		end
+	end
+	return total
+end
+local function Capacity()
+	local max = stat.inventorySpace.Value
+	local curr  =  stat.weight.Value
+	return curr,max
+end
+local function GetBest()
+	local yup = {}
+	for i,v in pairs(boxes:GetChildren()) do 
+		local val = eval(v)
+		table.insert(yup,{v,val})
+	end
+	table.sort(yup,function(a,b)
+		return a[2] > b[2]
+	end)
+	return yup[1][1]
+end
+local nummy = 0
+function activate()
+	nummy = nummy + 1
+	local our = nummy
+	local stopper = false
+
+	local con = nil 
+	con = player.CharacterRemoving:Connect(function() 
+		stopper = true
+		con:Disconnect()
+	end)
+
+	repeat
+		local curr,max = Capacity()
+		repeat
+			curr,max = Capacity()
+			local best = GetBest()
+			hump.CFrame = best.CFrame
+			if tool.Parent == char then
+				tool:Activate()
+			end
+			task.wait()
+		until going == false or stopper or (max - curr) < stat.tool.Value
+		if  (max - curr) < stat.tool.Value then
+			sell = true
+			char.Head:Destroy()
+			stopper = true
+		end
+
+		task.wait()
+	until going == false or stopper
+end
+local inp = game:GetService("UserInputService")
+inp.InputBegan:Connect(function(key,b)
+	if key.KeyCode == Enum.KeyCode.X then 
+		going = not going
+		if going then
+			activate()
+		end
+	end
+end)
